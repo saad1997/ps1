@@ -4,3 +4,4 @@ $password = ConvertTo-SecureString "LazyAdminPwd123!" -AsPlainText -Force  # Sup
 
 # Creating the user
 New-LocalUser -Name "$username" -Password $password -FullName "$username" -Description "Lazy Test user"
+Write-Output "test output"
